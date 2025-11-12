@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
 # NAMA FILE: app.py
-# (KODE YANG DIPERBAIKI UNTUK 'NotFittedError' DAN 'NameError')
+# (KODE YANG DIPERBARUI - Urutan Tampilan Diubah)
 # -----------------------------------------------------------------
 import streamlit as st
 import numpy as np
@@ -143,10 +143,7 @@ def calculate_accuracy(_model, x_test, y_test, n_features=5):
     return rmse_rupiah, y_test_rupiah, y_pred_rupiah
 
 def predict_future(model, initial_sequence, days_to_predict, n_features=5):
-    """
-    Melakukan prediksi berulang untuk N hari ke depan dan meng-unscale.
-    PERBAIKAN: Fungsi ini sekarang memiliki logika unscale.
-    """
+    """Melakukan prediksi berulang untuk N hari ke depan dan meng-unscale."""
     scaler = get_trained_scaler()
     prediksi_scaled_list = []
     current_sequence = initial_sequence.copy()
@@ -167,15 +164,12 @@ def predict_future(model, initial_sequence, days_to_predict, n_features=5):
 
     progress_bar.empty()
     
-    # --- BAGIAN YANG HILANG SEBELUMNYA ---
-    # Unscale hasil prediksi
     pred_array = np.array(prediksi_scaled_list).reshape(-1, 1)
     dummy_array = np.zeros((len(pred_array), n_features))
     dummy_array[:, 0] = pred_array[:, 0]
     prediksi_rupiah = scaler.inverse_transform(dummy_array)[:, 0]
-    # -------------------------------------
     
-    return prediksi_rupiah # Variabel ini sekarang sudah ada
+    return prediksi_rupiah
 
 # --- Bagian 4: Tampilan Utama Streamlit ---
 
@@ -191,20 +185,24 @@ if models_ready:
         if train_data is not None and test_data is not None:
             x_test, y_test = construct_time_frames(test_data)
             
-            # --- Sidebar (Input Pengguna) ---
-            st.sidebar.header("Pengaturan Prediksi")
+            # --- PENGATURAN PREDIKSI (DI HALAMAN UTAMA) ---
+            st.subheader("Pengaturan Prediksi")
             
-            model_choice = st.sidebar.selectbox(
-                "1. Pilih model untuk prediksi:",
-                ("Bidirectional-LSTM", "LSTM", "GRU")
-            )
+            col1, col2 = st.columns(2)
+            with col1:
+                model_choice = st.selectbox(
+                    "1. Pilih model untuk prediksi:",
+                    ("Bidirectional-LSTM", "LSTM", "GRU")
+                )
             
-            days_to_predict = st.sidebar.slider(
-                "2. Pilih jumlah hari prediksi:",
-                min_value=1, max_value=30, value=7
-            )
+            with col2:
+                days_to_predict = st.slider(
+                    "2. Pilih jumlah hari prediksi:",
+                    min_value=1, max_value=30, value=7
+                )
             
-            run_button = st.sidebar.button("Jalankan Prediksi")
+            run_button = st.button("Jalankan Prediksi 30 Hari ke Depan")
+            st.markdown("---")
             
             # --- Halaman Utama (Output) ---
             
@@ -212,23 +210,10 @@ if models_ready:
             model = build_and_load_model(config["name"], config["layers"])
             
             if model:
-                st.subheader(f"Model Aktif: {model_choice}")
-                
-                # Hitung RMSE (akurasi)
-                rmse_rp, y_test_rp, y_pred_rp = calculate_accuracy(
-                    model, x_test, y_test, n_features=input_shape[1]
-                )
-                
-                st.metric(
-                    label=f"Akurasi Model (RMSE pada data tes historis)",
-                    value=f"Rp {rmse_rp:,.2f}",
-                    help="Ini adalah rata-rata selisih harga (error) prediksi model saat diuji pada data historis."
-                )
-
-                # Jalankan prediksi masa depan jika tombol ditekan
+                # --- JALANKAN PREDIKSI MASA DEPAN JIKA TOMBOL DITEKAN ---
+                # (Pindahkan ke atas agar hasil prediksi muncul lebih dulu)
                 if run_button:
-                    st.markdown("---")
-                    st.subheader(f"Hasil Prediksi {days_to_predict} Hari ke Depan")
+                    st.subheader(f"Hasil Prediksi {days_to_predict} Hari ke Depan ({model_choice})")
                     
                     with st.spinner(f"Memprediksi {days_to_predict} hari ke depan..."):
                         input_seq = train_data[-64:]
@@ -257,17 +242,30 @@ if models_ready:
                     })
                     st.dataframe(df_prediksi, width=400)
                     
-                    # Tampilkan plot akurasi di bawah
                     st.markdown("---")
-                    st.subheader("Informasi Akurasi Model")
-                    with st.expander("Lihat Plot Akurasi pada Data Tes Historis"):
-                        fig_test, ax_test = plt.subplots(figsize=(12, 6))
-                        ax_test.plot(y_test_rp, color='red', label='Harga Asli (Tes)')
-                        ax_test.plot(y_pred_rp, color='blue', label=f'Prediksi {model_choice}')
-                        ax_test.set_title('Perbandingan Prediksi vs Harga Asli (Data Tes)')
-                        ax_test.set_ylabel('Harga Saham (Rp)')
-                        ax_test.legend()
-                        st.pyplot(fig_test)
+
+                # --- Tampilkan Akurasi Model (Sekarang di bawah) ---
+                st.subheader(f"Informasi Akurasi Model: {model_choice}")
+                with st.spinner("Menghitung akurasi model pada data tes..."):
+                    rmse_rp, y_test_rp, y_pred_rp = calculate_accuracy(
+                        model, x_test, y_test, n_features=input_shape[1]
+                    )
+                
+                st.metric(
+                    label=f"Akurasi Model (RMSE pada data tes historis)",
+                    value=f"Rp {rmse_rp:,.2f}",
+                    help="Ini adalah rata-rata selisih harga (error) prediksi model saat diuji pada data historis."
+                )
+
+                # Tampilkan plot akurasi di expander
+                with st.expander("Lihat Plot Akurasi pada Data Tes Historis"):
+                    fig_test, ax_test = plt.subplots(figsize=(12, 6))
+                    ax_test.plot(y_test_rp, color='red', label='Harga Asli (Tes)')
+                    ax_test.plot(y_pred_rp, color='blue', label=f'Prediksi {model_choice}')
+                    ax_test.set_title('Perbandingan Prediksi vs Harga Asli (Data Tes)')
+                    ax_test.set_ylabel('Harga Saham (Rp)')
+                    ax_test.legend()
+                    st.pyplot(fig_test)
             
             else:
                 st.error("Gagal memuat model. Periksa file .h5 di Google Drive.")
