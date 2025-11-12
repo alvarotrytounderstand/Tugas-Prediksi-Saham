@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
 # NAMA FILE: app.py
-# (KODE YANG DIPERBARUI - Label Tombol Dinamis)
+# (KODE YANG DIPERBARUI - Kontrol Prediksi di Tengah Halaman)
 # -----------------------------------------------------------------
 import streamlit as st
 import numpy as np
@@ -185,24 +185,29 @@ if models_ready:
         if train_data is not None and test_data is not None:
             x_test, y_test = construct_time_frames(test_data)
             
-            # --- PENGATURAN PREDIKSI (DI HALAMAN UTAMA) ---
+            # --- PENGATURAN PREDIKSI (DI HALAMAN UTAMA & DI TENGAH) ---
             st.subheader("Pengaturan Prediksi")
             
-            col1, col2 = st.columns(2)
-            with col1:
+            # PERBAIKAN: Gunakan kolom untuk membuat container di tengah
+            col1, col2, col3 = st.columns([1, 1.5, 1]) # [kosong, isi, kosong]
+            
+            with col2: # Semua widget di dalam kolom tengah
                 model_choice = st.selectbox(
                     "1. Pilih model untuk prediksi:",
                     ("Bidirectional-LSTM", "LSTM", "GRU")
                 )
-            
-            with col2:
+                
                 days_to_predict = st.slider(
                     "2. Pilih jumlah hari prediksi:",
                     min_value=1, max_value=30, value=7
                 )
+                
+                # PERBAIKAN: Tombol sekarang mengisi lebar kolom tengah
+                run_button = st.button(
+                    f"Jalankan Prediksi {days_to_predict} Hari ke Depan",
+                    use_container_width=True 
+                )
             
-            # PERBAIKAN: Mengganti label tombol agar dinamis
-            run_button = st.button(f"Jalankan Prediksi {days_to_predict} Hari ke Depan")
             st.markdown("---")
             
             # --- Halaman Utama (Output) ---
