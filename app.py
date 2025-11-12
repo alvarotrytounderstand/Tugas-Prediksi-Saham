@@ -1,5 +1,6 @@
 # -----------------------------------------------------------------
 # NAMA FILE: app.py
+# (KODE YANG DIPERBAIKI UNTUK ERROR UnhashableParamError)
 # -----------------------------------------------------------------
 import streamlit as st
 import numpy as np
@@ -57,8 +58,17 @@ def get_trained_scaler():
 
 # Fungsi untuk memuat dan memproses data train/test
 @st.cache_data
-def load_and_process_data(file_path, scaler, is_train=True):
-    """Memuat dan memproses data train atau test."""
+def load_and_process_data(file_path, is_train=True):
+    """
+    Memuat dan memproses data train atau test.
+    PERBAIKAN: Fungsi ini tidak lagi menerima 'scaler' sebagai argumen.
+    """
+    # Ambil scaler yang sudah di-cache
+    scaler = get_trained_scaler()
+    if scaler is None:
+        st.error("Gagal mendapatkan scaler.")
+        return None
+
     try:
         data = pd.read_csv(file_path, sep=',')
         data.columns = data.columns.str.strip()
@@ -66,11 +76,8 @@ def load_and_process_data(file_path, scaler, is_train=True):
         
         data_processed = data.drop(['Adj Close', 'Date'], axis=1)
         
-        if is_train:
-            data_scaled = scaler.transform(data_processed)
-        else:
-            # Untuk data tes, kita juga perlu .transform
-            data_scaled = scaler.transform(data_processed)
+        # Gunakan scaler yang sudah di-cache untuk transform
+        data_scaled = scaler.transform(data_processed)
         
         return data_scaled
     except FileNotFoundError:
@@ -92,7 +99,7 @@ def construct_time_frames(data, frame_size=64):
 
 input_shape = (64, 5) # (64 hari, 5 fitur)
 
-# Definisi arsitektur (harus sama dengan saat training)
+# Definisi arsitektur
 layers_lstm = [
     LSTM(units=64, return_sequences=True), GroupNormalization(), Dropout(0.2),
     LSTM(units=64, return_sequences=True), GroupNormalization(), Dropout(0.2),
@@ -134,8 +141,12 @@ def build_and_load_model(model_name, layers):
 # --- Bagian 3: Fungsi Akurasi dan Prediksi ---
 
 @st.cache_data
-def calculate_accuracy(_model, x_test, y_test, scaler, n_features=5):
-    """Menghitung 'Akurasi' (RMSE) pada data tes dan mengubahnya ke Rupiah."""
+def calculate_accuracy(_model, x_test, y_test, n_features=5):
+    """
+    Menghitung 'Akurasi' (RMSE) pada data tes dan mengubahnya ke Rupiah.
+    PERBAIKAN: Fungsi ini tidak lagi menerima 'scaler' sebagai argumen.
+    """
+    scaler = get_trained_scaler() # Ambil scaler dari cache
     y_pred_scaled = _model.predict(x_test)
     
     # Unscale y_test (harga asli)
@@ -155,15 +166,17 @@ def calculate_accuracy(_model, x_test, y_test, scaler, n_features=5):
 def predict_future(model,
                    initial_sequence,
                    days_to_predict,
-                   scaler,
-                   frame_size=64,
                    n_features=5):
-    """Melakukan prediksi berulang untuk N hari ke depan dan meng-unscale."""
+    """
+    Melakukan prediksi berulang untuk N hari ke depan dan meng-unscale.
+    PERBAIKAN: Fungsi ini tidak lagi menerima 'scaler' sebagai argumen.
+    """
+    scaler = get_trained_scaler() # Ambil scaler dari cache
     prediksi_scaled_list = []
     current_sequence = initial_sequence.copy()
     
     for _ in range(days_to_predict):
-        pred_input = np.reshape(current_sequence, (1, frame_size, n_features))
+        pred_input = np.reshape(current_sequence, (1, 64, n_features))
         pred_harga_scaled = model.predict(pred_input, verbose=0)
         
         prediksi_scaled_list.append(pred_harga_scaled[0, 0])
@@ -190,12 +203,14 @@ models_ready = download_stock_models()
 
 if models_ready:
     # 1. Muat scaler (hanya sekali)
+    # Panggilan ini akan melatih dan menyimpan scaler di cache
     scaler = get_trained_scaler()
     
     if scaler:
         # 2. Muat data train dan test (hanya sekali)
-        train_data = load_and_process_data(PATH_DATA_TRAIN, scaler, is_train=True)
-        test_data = load_and_process_data(PATH_DATA_TEST, scaler, is_train=False)
+        # PERBAIKAN: Tidak perlu memasukkan 'scaler'
+        train_data = load_and_process_data(PATH_DATA_TRAIN, is_train=True)
+        test_data = load_and_process_data(PATH_DATA_TEST, is_train=False)
         
         if train_data is not None and test_data is not None:
             # 3. Buat sequence data tes untuk evaluasi
@@ -227,8 +242,9 @@ if models_ready:
                 
                 # 5. Hitung dan tampilkan "Akurasi" (RMSE)
                 with st.spinner("Menghitung akurasi model pada data tes..."):
+                    # PERBAIKAN: Tidak perlu memasukkan 'scaler'
                     rmse_rp, y_test_rp, y_pred_rp = calculate_accuracy(
-                        model, x_test, y_test, scaler, n_features=input_shape[1]
+                        model, x_test, y_test, n_features=input_shape[1]
                     )
                 
                 st.metric(
@@ -256,8 +272,9 @@ if models_ready:
                         # Ambil data 64 hari terakhir dari data train sebagai titik awal
                         input_seq = train_data[-64:]
                         
+                        # PERBAIKAN: Tidak perlu memasukkan 'scaler'
                         prediksi_rupiah = predict_future(
-                            model, input_seq, days_to_predict, scaler, n_features=input_shape[1]
+                            model, input_seq, days_to_predict, n_features=input_shape[1]
                         )
                     
                     st.success("Prediksi selesai!")
