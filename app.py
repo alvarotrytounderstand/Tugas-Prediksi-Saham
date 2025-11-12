@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
 # NAMA FILE: app.py
-# (KODE YANG DIPERBARUI - Urutan Tampilan Diubah)
+# (KODE YANG DIPERBARUI - Label Tombol Dinamis)
 # -----------------------------------------------------------------
 import streamlit as st
 import numpy as np
@@ -201,7 +201,8 @@ if models_ready:
                     min_value=1, max_value=30, value=7
                 )
             
-            run_button = st.button("Jalankan Prediksi 30 Hari ke Depan")
+            # PERBAIKAN: Mengganti label tombol agar dinamis
+            run_button = st.button(f"Jalankan Prediksi {days_to_predict} Hari ke Depan")
             st.markdown("---")
             
             # --- Halaman Utama (Output) ---
@@ -211,7 +212,6 @@ if models_ready:
             
             if model:
                 # --- JALANKAN PREDIKSI MASA DEPAN JIKA TOMBOL DITEKAN ---
-                # (Pindahkan ke atas agar hasil prediksi muncul lebih dulu)
                 if run_button:
                     st.subheader(f"Hasil Prediksi {days_to_predict} Hari ke Depan ({model_choice})")
                     
@@ -243,7 +243,7 @@ if models_ready:
                     st.dataframe(df_prediksi, width=400)
                     
                     st.markdown("---")
-
+                
                 # --- Tampilkan Akurasi Model (Sekarang di bawah) ---
                 st.subheader(f"Informasi Akurasi Model: {model_choice}")
                 with st.spinner("Menghitung akurasi model pada data tes..."):
