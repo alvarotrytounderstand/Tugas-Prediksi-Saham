@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
 # NAMA FILE: app.py
-# (KODE YANG DIPERBARUI - Kontrol Prediksi di Tengah Halaman)
+# (KODE YANG DIPERBARUI - Judul di Tengah)
 # -----------------------------------------------------------------
 import streamlit as st
 import numpy as np
@@ -23,7 +23,10 @@ from sklearn.metrics import mean_squared_error
 # --- Bagian 1: Pengaturan Awal & Fungsi Pemuatan Data ---
 
 st.set_page_config(page_title="Prediksi Saham BBCA", layout="wide")
-st.title("Aplikasi Prediksi Saham BBCA")
+
+# PERBAIKAN: Judul utama di tengah
+st.markdown("<h1 style='text-align: center;'>Aplikasi Prediksi Saham BBCA</h1>", unsafe_allow_html=True)
+
 
 # Path ke file data dan model
 PATH_DATA_TRAIN = 'Data Historis BBCA_Train2.csv'
@@ -186,9 +189,11 @@ if models_ready:
             x_test, y_test = construct_time_frames(test_data)
             
             # --- PENGATURAN PREDIKSI (DI HALAMAN UTAMA & DI TENGAH) ---
-            st.subheader("Pengaturan Prediksi")
             
-            # PERBAIKAN: Gunakan kolom untuk membuat container di tengah
+            # PERBAIKAN: Judul subheader di tengah
+            st.markdown("<h3 style='text-align: center;'>Pengaturan Prediksi</h3>", unsafe_allow_html=True)
+            
+            # Gunakan kolom untuk membuat container di tengah
             col1, col2, col3 = st.columns([1, 1.5, 1]) # [kosong, isi, kosong]
             
             with col2: # Semua widget di dalam kolom tengah
@@ -202,7 +207,6 @@ if models_ready:
                     min_value=1, max_value=30, value=7
                 )
                 
-                # PERBAIKAN: Tombol sekarang mengisi lebar kolom tengah
                 run_button = st.button(
                     f"Jalankan Prediksi {days_to_predict} Hari ke Depan",
                     use_container_width=True 
