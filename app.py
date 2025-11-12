@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
 # NAMA FILE: app.py
-# (KODE YANG DIPERBAIKI UNTUK ERROR UnhashableParamError)
+# (KODE YANG DIPERBARUI - Urutan Tampilan Diubah)
 # -----------------------------------------------------------------
 import streamlit as st
 import numpy as np
@@ -37,33 +37,22 @@ def get_trained_scaler():
     Memuat data train HANYA untuk melatih (fit) scaler.
     Scaler ini disimpan di cache agar bisa digunakan untuk un-scaling nanti.
     """
-    try:
+    if 'bbca_scaler' not in st.session_state:
+        print("Membuat dan me-training scaler...")
         train_data = pd.read_csv(PATH_DATA_TRAIN, sep=',')
         train_data.columns = train_data.columns.str.strip()
         train_data = train_data.loc[:, ~train_data.columns.str.contains('^Unnamed', na=False)]
         
-        # Hapus kolom non-numerik
         data_to_fit = train_data.drop(['Adj Close', 'Date'], axis=1)
         
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaler.fit(data_to_fit)
-        print("Scaler berhasil dilatih.")
-        return scaler
-    except FileNotFoundError:
-        st.error(f"File data train '{PATH_DATA_TRAIN}' tidak ditemukan.")
-        return None
-    except Exception as e:
-        st.error(f"Gagal memuat atau melatih scaler: {e}")
-        return None
+        st.session_state['bbca_scaler'] = scaler
+    return st.session_state['bbca_scaler']
 
-# Fungsi untuk memuat dan memproses data train/test
 @st.cache_data
 def load_and_process_data(file_path, is_train=True):
-    """
-    Memuat dan memproses data train atau test.
-    PERBAIKAN: Fungsi ini tidak lagi menerima 'scaler' sebagai argumen.
-    """
-    # Ambil scaler yang sudah di-cache
+    """Memuat dan memproses data train atau test."""
     scaler = get_trained_scaler()
     if scaler is None:
         st.error("Gagal mendapatkan scaler.")
@@ -75,8 +64,6 @@ def load_and_process_data(file_path, is_train=True):
         data = data.loc[:, ~data.columns.str.contains('^Unnamed', na=False)]
         
         data_processed = data.drop(['Adj Close', 'Date'], axis=1)
-        
-        # Gunakan scaler yang sudah di-cache untuk transform
         data_scaled = scaler.transform(data_processed)
         
         return data_scaled
@@ -92,14 +79,13 @@ def construct_time_frames(data, frame_size=64):
     x_data, y_data = [], []
     for i in range(frame_size, len(data)):
         x_data.append(data[i-frame_size:i])
-        y_data.append(data[i, 0]) # Target adalah harga 'Open' (kolom 0)
+        y_data.append(data[i, 0])
     return np.array(x_data), np.array(y_data)
 
 # --- Bagian 2: Definisi Arsitektur Model & Pemuatan ---
 
-input_shape = (64, 5) # (64 hari, 5 fitur)
+input_shape = (64, 5) 
 
-# Definisi arsitektur
 layers_lstm = [
     LSTM(units=64, return_sequences=True), GroupNormalization(), Dropout(0.2),
     LSTM(units=64, return_sequences=True), GroupNormalization(), Dropout(0.2),
@@ -116,7 +102,6 @@ layers_bidirectional = [
     Bidirectional(LSTM(units=64)), GroupNormalization(), Dropout(0.2), Dense(units=1)
 ]
 
-# Dictionary untuk mempermudah
 MODEL_CONFIGS = {
     "LSTM": {"name": "lstm_model", "layers": layers_lstm},
     "GRU": {"name": "gru_model", "layers": layers_gru},
@@ -142,78 +127,56 @@ def build_and_load_model(model_name, layers):
 
 @st.cache_data
 def calculate_accuracy(_model, x_test, y_test, n_features=5):
-    """
-    Menghitung 'Akurasi' (RMSE) pada data tes dan mengubahnya ke Rupiah.
-    PERBAIKAN: Fungsi ini tidak lagi menerima 'scaler' sebagai argumen.
-    """
-    scaler = get_trained_scaler() # Ambil scaler dari cache
+    """Menghitung 'Akurasi' (RMSE) pada data tes dan mengubahnya ke Rupiah."""
+    scaler = get_trained_scaler()
     y_pred_scaled = _model.predict(x_test)
     
-    # Unscale y_test (harga asli)
     dummy_test = np.zeros((len(y_test), n_features))
     dummy_test[:, 0] = y_test.flatten()
     y_test_rupiah = scaler.inverse_transform(dummy_test)[:, 0]
     
-    # Unscale y_pred (harga prediksi)
     dummy_pred = np.zeros((len(y_pred_scaled), n_features))
     dummy_pred[:, 0] = y_pred_scaled.flatten()
     y_pred_rupiah = scaler.inverse_transform(dummy_pred)[:, 0]
     
-    # Hitung RMSE dalam Rupiah
     rmse_rupiah = np.sqrt(mean_squared_error(y_test_rupiah, y_pred_rupiah))
     return rmse_rupiah, y_test_rupiah, y_pred_rupiah
 
-def predict_future(model,
-                   initial_sequence,
-                   days_to_predict,
-                   n_features=5):
-    """
-    Melakukan prediksi berulang untuk N hari ke depan dan meng-unscale.
-    PERBAIKAN: Fungsi ini tidak lagi menerima 'scaler' sebagai argumen.
-    """
-    scaler = get_trained_scaler() # Ambil scaler dari cache
+def predict_future(model, initial_sequence, days_to_predict, n_features=5):
+    """Melakukan prediksi berulang untuk N hari ke depan dan meng-unscale."""
+    scaler = get_trained_scaler()
     prediksi_scaled_list = []
     current_sequence = initial_sequence.copy()
     
-    for _ in range(days_to_predict):
+    progress_bar = st.progress(0, text="Melakukan prediksi...")
+    
+    for i in range(days_to_predict):
         pred_input = np.reshape(current_sequence, (1, 64, n_features))
         pred_harga_scaled = model.predict(pred_input, verbose=0)
         
         prediksi_scaled_list.append(pred_harga_scaled[0, 0])
         
-        # Buat baris fitur baru
         fitur_baru = np.full((1, n_features), pred_harga_scaled[0, 0])
-        
-        # Tambahkan ke sequence
         current_sequence = np.append(current_sequence, fitur_baru, axis=0)
-        current_sequence = current_sequence[1:] # Hapus hari pertama
+        current_sequence = current_sequence[1:]
         
-    # Unscale hasil prediksi
-    pred_array = np.array(prediksi_scaled_list).reshape(-1, 1)
-    dummy_array = np.zeros((len(pred_array), n_features))
-    dummy_array[:, 0] = pred_array[:, 0]
-    prediksi_rupiah = scaler.inverse_transform(dummy_array)[:, 0]
-    
+        progress_bar.progress((i + 1) / days_to_predict, text=f"Memprediksi hari ke-{i+1}...")
+
+    progress_bar.empty()
     return prediksi_rupiah
 
 # --- Bagian 4: Tampilan Utama Streamlit ---
 
-# Unduh model terlebih dahulu
 models_ready = download_stock_models()
 
 if models_ready:
-    # 1. Muat scaler (hanya sekali)
-    # Panggilan ini akan melatih dan menyimpan scaler di cache
     scaler = get_trained_scaler()
     
     if scaler:
-        # 2. Muat data train dan test (hanya sekali)
-        # PERBAIKAN: Tidak perlu memasukkan 'scaler'
         train_data = load_and_process_data(PATH_DATA_TRAIN, is_train=True)
         test_data = load_and_process_data(PATH_DATA_TEST, is_train=False)
         
         if train_data is not None and test_data is not None:
-            # 3. Buat sequence data tes untuk evaluasi
             x_test, y_test = construct_time_frames(test_data)
             
             # --- Sidebar (Input Pengguna) ---
@@ -233,19 +196,16 @@ if models_ready:
             
             # --- Halaman Utama (Output) ---
             
-            # 4. Muat model yang dipilih
             config = MODEL_CONFIGS[model_choice]
             model = build_and_load_model(config["name"], config["layers"])
             
             if model:
                 st.subheader(f"Model Aktif: {model_choice}")
                 
-                # 5. Hitung dan tampilkan "Akurasi" (RMSE)
-                with st.spinner("Menghitung akurasi model pada data tes..."):
-                    # PERBAIKAN: Tidak perlu memasukkan 'scaler'
-                    rmse_rp, y_test_rp, y_pred_rp = calculate_accuracy(
-                        model, x_test, y_test, n_features=input_shape[1]
-                    )
+                # Hitung RMSE (akurasi)
+                rmse_rp, y_test_rp, y_pred_rp = calculate_accuracy(
+                    model, x_test, y_test, n_features=input_shape[1]
+                )
                 
                 st.metric(
                     label=f"Akurasi Model (RMSE pada data tes historis)",
@@ -253,26 +213,14 @@ if models_ready:
                     help="Ini adalah rata-rata selisih harga (error) prediksi model saat diuji pada data historis."
                 )
 
-                # 6. Tampilkan plot Akurasi (Prediksi vs Asli di data tes)
-                with st.expander("Lihat Plot Akurasi pada Data Tes"):
-                    fig_test, ax_test = plt.subplots(figsize=(12, 6))
-                    ax_test.plot(y_test_rp, color='red', label='Harga Asli (Tes)')
-                    ax_test.plot(y_pred_rp, color='blue', label=f'Prediksi {model_choice}')
-                    ax_test.set_title('Perbandingan Prediksi vs Harga Asli (Data Tes)')
-                    ax_test.set_ylabel('Harga Saham (Rp)')
-                    ax_test.legend()
-                    st.pyplot(fig_test)
-
-                # 7. Jalankan prediksi masa depan jika tombol ditekan
+                # Jalankan prediksi masa depan jika tombol ditekan
                 if run_button:
                     st.markdown("---")
                     st.subheader(f"Hasil Prediksi {days_to_predict} Hari ke Depan")
                     
                     with st.spinner(f"Memprediksi {days_to_predict} hari ke depan..."):
-                        # Ambil data 64 hari terakhir dari data train sebagai titik awal
                         input_seq = train_data[-64:]
                         
-                        # PERBAIKAN: Tidak perlu memasukkan 'scaler'
                         prediksi_rupiah = predict_future(
                             model, input_seq, days_to_predict, n_features=input_shape[1]
                         )
@@ -296,6 +244,18 @@ if models_ready:
                         "Prediksi Harga (Rp)": [f"Rp {harga:,.0f}" for harga in prediksi_rupiah]
                     })
                     st.dataframe(df_prediksi, width=400)
+                    
+                    # PERPINDAHAN KODE: Pindahkan plot akurasi ke sini
+                    st.markdown("---")
+                    st.subheader("Informasi Akurasi Model")
+                    with st.expander("Lihat Plot Akurasi pada Data Tes Historis"):
+                        fig_test, ax_test = plt.subplots(figsize=(12, 6))
+                        ax_test.plot(y_test_rp, color='red', label='Harga Asli (Tes)')
+                        ax_test.plot(y_pred_rp, color='blue', label=f'Prediksi {model_choice}')
+                        ax_test.set_title('Perbandingan Prediksi vs Harga Asli (Data Tes)')
+                        ax_test.set_ylabel('Harga Saham (Rp)')
+                        ax_test.legend()
+                        st.pyplot(fig_test)
             
             else:
                 st.error("Gagal memuat model. Periksa file .h5 di Google Drive.")
