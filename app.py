@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
 # NAMA FILE: app.py
-# (KODE YANG DIPERBARUI - Urutan Tampilan Diubah)
+# (KODE YANG DIPERBAIKI UNTUK 'NotFittedError' DAN 'NameError')
 # -----------------------------------------------------------------
 import streamlit as st
 import numpy as np
@@ -143,7 +143,10 @@ def calculate_accuracy(_model, x_test, y_test, n_features=5):
     return rmse_rupiah, y_test_rupiah, y_pred_rupiah
 
 def predict_future(model, initial_sequence, days_to_predict, n_features=5):
-    """Melakukan prediksi berulang untuk N hari ke depan dan meng-unscale."""
+    """
+    Melakukan prediksi berulang untuk N hari ke depan dan meng-unscale.
+    PERBAIKAN: Fungsi ini sekarang memiliki logika unscale.
+    """
     scaler = get_trained_scaler()
     prediksi_scaled_list = []
     current_sequence = initial_sequence.copy()
@@ -163,7 +166,16 @@ def predict_future(model, initial_sequence, days_to_predict, n_features=5):
         progress_bar.progress((i + 1) / days_to_predict, text=f"Memprediksi hari ke-{i+1}...")
 
     progress_bar.empty()
-    return prediksi_rupiah
+    
+    # --- BAGIAN YANG HILANG SEBELUMNYA ---
+    # Unscale hasil prediksi
+    pred_array = np.array(prediksi_scaled_list).reshape(-1, 1)
+    dummy_array = np.zeros((len(pred_array), n_features))
+    dummy_array[:, 0] = pred_array[:, 0]
+    prediksi_rupiah = scaler.inverse_transform(dummy_array)[:, 0]
+    # -------------------------------------
+    
+    return prediksi_rupiah # Variabel ini sekarang sudah ada
 
 # --- Bagian 4: Tampilan Utama Streamlit ---
 
@@ -245,7 +257,7 @@ if models_ready:
                     })
                     st.dataframe(df_prediksi, width=400)
                     
-                    # PERPINDAHAN KODE: Pindahkan plot akurasi ke sini
+                    # Tampilkan plot akurasi di bawah
                     st.markdown("---")
                     st.subheader("Informasi Akurasi Model")
                     with st.expander("Lihat Plot Akurasi pada Data Tes Historis"):
